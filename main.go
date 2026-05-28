@@ -50,18 +50,21 @@ func (e *SMSSender) Send(customer string) error {
 // SQLiteDatabase и PostgresqlDatabase реализуют интерфейс RepositoryWriter
 
 // SQLiteDatabase для SQLite или любой другой СУБД, которая будет реализовывать интерфейс RepositoryWriter
-type SQLiteDatabase struct {
-	db *sql.DB
-}
+type SQLiteDatabase struct{}
 
 func (s *SQLiteDatabase) CreateOrder(order Order) error {
-	_, err := s.db.Exec(
-		"INSERT INTO orders (customer, products, total, status) VALUES (?, ?, ?, ?)",
-		order.Customer, order.Products, order.Total, order.Status,
-	)
+	db1, err := sql.Open("sqlite3", "sqlite_db/orders.db")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db1.Close()
+
+	_, err = db1.Exec("INSERT INTO orders (customer, products, total, status) VALUES (?, ?, ?, ?)", order.Customer, order.Products, order.Total, order.Status)
+
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -100,10 +103,10 @@ func CreateOrderService(useMssSQL bool, useSMS bool) *OrderService {
 		if err != nil {
 			log.Fatal(err)
 		}
-		return &OrderService{repo: &SQLiteDatabase{db: db}, notifier: notifier}
+		return &OrderService{repo: &SQLiteDatabase{}, notifier: notifier}
 	}
 
-	return &OrderService{repo: &PostgresqlDatabase{db: nil}, notifier: notifier}
+	return &OrderService{repo: &PostgresqlDatabase{}, notifier: notifier}
 }
 
 func (s *OrderService) CreateOrder(customerName string, products []string, total float64) (Order, error) {
@@ -124,10 +127,17 @@ func (s *OrderService) CreateOrder(customerName string, products []string, total
 
 func main() {
 
-	// Создание сервиса с использованием SQLite
+	// Создание сервиса с использованием SQLite и E-mail уведомлений
 	serv := CreateOrderService(true, false)
 
 	order, err := serv.CreateOrder("Иван", []string{"apple", "banana"}, 10.5)
+	if err != nil {
+		log.Fatal(err)
+	}
+	// Отправка уведомления
+	serv.notifier.Send(order.Customer)
+
+	order, err = serv.CreateOrder("Марья", []string{"prune", "carrot"}, 110.5)
 	if err != nil {
 		log.Fatal(err)
 	}
