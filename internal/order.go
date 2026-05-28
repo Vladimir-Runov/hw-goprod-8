@@ -1,7 +1,4 @@
-package main
-
-import (
-)
+package internal
 
 type Order struct {
 	ID       int
